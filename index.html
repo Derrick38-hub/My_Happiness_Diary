@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#304F6D" />
+    <meta
+      name="description"
+      content="A peaceful place to reflect, collect little joys, and grow your own happiness garden."
+    />
+    <title>My Happiness Tracker — Grow Your Happiness</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="garden-atmosphere" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <a class="skip" href="#journal">Skip to reflection</a>
+    <header>
+      <a class="brand" href="#home"
+        ><span class="brand-mark">❧</span> my happiness tracker<span
+          class="brand-dot"
+          >.</span
+        ></a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#home">My tree</a><a href="#history">Journal</a
+        ><a href="#garden">My garden</a>
+      </nav>
+      <div class="header-actions">
+        <button id="backupBtn" class="quiet" type="button">Backup &amp; restore</button>
+        <button id="openMonthlyGraph" class="quiet" type="button">Monthly graph</button>
+      </div>
+    </header>
+    <dialog id="backupDialog" class="journal-dialog" aria-labelledby="backupTitle" aria-describedby="backupInstructions">
+      <div class="backup-panel">
+        <h2 id="backupTitle">Backup &amp; restore</h2>
+        <p id="backupInstructions">Save a backup file to your cloud drive. To move your journal, open this app in the other browser and choose that file.</p>
+        <div class="header-actions">
+          <button id="downloadBackup" class="quiet" type="button">Download backup</button>
+          <button id="chooseBackup" class="quiet" type="button">Restore from file</button>
+          <button id="closeBackup" class="quiet" type="button">Close</button>
+        </div>
+        <input id="backupFile" type="file" accept=".json,application/json" hidden />
+        <p id="backupFeedback" role="status"></p>
+      </div>
+    </dialog>
+    <dialog id="monthlyGraphDialog" class="journal-dialog monthly-graph-dialog" aria-labelledby="monthlyGraphTitle">
+      <div class="journal-modal-shell">
+        <div class="journal-modal-heading">
+          <h3 id="monthlyGraphTitle">Monthly happiness graph</h3>
+          <button id="closeMonthlyGraph" class="quiet" type="button">Close</button>
+        </div>
+        <div class="journal-modal-entries">
+          <div class="calendar-toolbar">
+            <button id="graphPreviousMonth" class="calendar-nav" type="button" aria-label="Previous month">‹</button>
+            <h3 id="graphMonth" aria-live="polite"></h3>
+            <button id="graphNextMonth" class="calendar-nav" type="button" aria-label="Next month">›</button>
+          </div>
+          <p id="graphSummary"></p>
+          <div class="monthly-graph" aria-hidden="true">
+            <div id="graphScale" class="graph-scale"></div>
+            <div id="graphBars" class="graph-bars"></div>
+            <div id="graphDays" class="graph-days"></div>
+          </div>
+          <details>
+            <summary>View daily points</summary>
+            <ol id="graphDailyPoints" class="graph-daily-points"></ol>
+          </details>
+        </div>
+      </div>
+    </dialog>
+    <p id="restoreFeedback" class="restore-feedback" role="status"></p>
+    <main id="home">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">WELCOME TO YOUR ENCHANTED GARDEN</p>
+          <h1>A little joy<br />A little <em>magic</em></h1>
+          <p>
+            Every positive thought plants a little magic.<br />Let yours grow
+            into something beautiful.
+          </p>
+        </div>
+        <a href="#journal" class="primary">Write a reflection</a>
+      </section>
+      <div class="dashboard">
+        <section class="tree-card" aria-labelledby="treeHeading">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">WHERE YOUR LITTLE JOYS TAKE ROOT</p>
+              <h2 id="treeHeading">My happiness tree</h2>
+              <p id="treeMonth" class="tree-month"></p>
+            </div>
+            <span class="pill" id="treeNumber">Tree 01</span>
+          </div>
+          <div class="tree-scene">
+            <div class="scene-sparkles" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="petal petal-one" aria-hidden="true"></div>
+            <div class="petal petal-two" aria-hidden="true"></div>
+            <span class="scene-note">A quiet place for a little wonder.</span>
+            <div class="sun"></div>
+            <div class="cloud cloud-one"></div>
+            <div class="cloud cloud-two"></div>
+            <div class="hill hill-back"></div>
+            <div class="hill hill-front"></div>
+            <div id="tree" role="img" aria-label="Seed"></div>
+            <span class="grass grass-one">⌁</span
+            ><span class="grass grass-two">⌁</span
+            ><span id="floatingHP" aria-hidden="true"></span>
+          </div>
+          <div class="growth-caption">
+            <h3 id="treeStage">Seed</h3>
+            <span class="pill" id="progressText">0% grown</span>
+          </div>
+          <p id="treeMessage" class="muted"></p>
+          <div class="progress-info">
+            <span>Your growth journey</span
+            ><strong
+              ><span id="currentHP">0</span>
+              <span class="muted"
+                >/ <span id="targetHP"></span> HP</span
+              ></strong
+            >
+          </div>
+          <div
+            class="progress-bar"
+            id="growthProgress"
+            role="progressbar"
+            aria-label="Tree growth"
+            aria-valuemin="0"
+          >
+            <div id="progressFill"></div>
+          </div>
+          <p id="nextStage" class="tiny"></p>
+          <div class="quote">
+            <span>“</span>
+            <p id="quote"></p>
+            <small>A LITTLE REMINDER FOR TODAY</small>
+          </div>
+        </section>
+        <section id="journal" class="journal-card">
+          <p class="eyebrow">A PAGE FROM YOUR STORY</p>
+          <div class="reflection-heading">
+            <h2>How did your happy moment make you feel today?</h2>
+            <button
+              id="openGrowthGuide"
+              class="how-it-works"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="growthGuideDialog"
+            >
+              <span aria-hidden="true">&#9432;</span> How it works
+            </button>
+          </div>
+          <p class="muted">
+            Even the smallest moments can bring happiness. Take a moment to
+            remember yours.
+          </p>
+          <dialog
+            id="growthGuideDialog"
+            class="journal-dialog growth-guide-dialog"
+            aria-labelledby="growthGuideTitle"
+          >
+            <div class="journal-modal-shell">
+              <div class="journal-modal-heading">
+                <div>
+                  <p class="eyebrow">A LITTLE GUIDE TO GROWING</p>
+                  <h3 id="growthGuideTitle">How to Grow Your Happiness Tree</h3>
+                </div>
+                <button
+                  id="closeGrowthGuide"
+                  class="calendar-nav"
+                  type="button"
+                  aria-label="Close instructions"
+                >
+                  &#215;
+                </button>
+              </div>
+              <div class="journal-modal-entries">
+                <div class="growth-guide-content">
+                  <p>
+                    Every month, a new seed begins its happiness journey. Record
+                    your mood and reflect on your day to help it grow.
+                  </p>
+                  <ol class="guide-steps">
+                    <li>
+                      Choose one of five moods to remember how a happy moment
+                      felt.
+                    </li>
+                    <li>Earn +5 HP for your first daily mood check-in.</li>
+                    <li>
+                      Write about happy moments to earn reflection and bonus HP.
+                    </li>
+                    <li>Collect HP to grow your monthly Happiness Tree.</li>
+                    <li>
+                      Revisit your memories through the Happiness Calendar.
+                    </li>
+                  </ol>
+                  <ul class="growth-rules">
+                    <li>
+                      <span class="guide-icon" aria-hidden="true">&#9728;</span>
+                      <div>
+                        <strong>Daily Mood Check-in <b>+5 HP</b></strong
+                        ><span
+                          >Choose Happy, Grateful, Calm, Excited, or Neutral to
+                          remember how a happy moment felt. Save without writing
+                          if you wish. All five earn the same daily
+                          reward.</span
+                        >
+                      </div>
+                    </li>
+                    <li>
+                      <span class="guide-icon" aria-hidden="true">&#9998;</span>
+                      <div>
+                        <strong>Daily Reflection <b>+10 HP</b></strong
+                        ><span
+                          >Write and save a reflection. Awarded once per day,
+                          separately from your mood check-in.</span
+                        >
+                      </div>
+                    </li>
+                    <li>
+                      <span class="guide-icon" aria-hidden="true"
+                        >&#10023;</span
+                      >
+                      <div>
+                        <strong>Positive Words <b>+5 HP each</b></strong
+                        ><span
+                          >Each unique recognized positive word per day. Words
+                          can earn points again tomorrow.</span
+                        >
+                      </div>
+                    </li>
+                    <li>
+                      <span class="guide-icon" aria-hidden="true"
+                        >&#10047;</span
+                      >
+                      <div>
+                        <strong>Happy Memory <b>+10 HP</b></strong
+                        ><span
+                          >Check the happy memory box and write at least 30
+                          characters. Once per day.</span
+                        >
+                      </div>
+                    </li>
+                    <li>
+                      <span class="guide-icon" aria-hidden="true">&#9825;</span>
+                      <div>
+                        <strong>Gratitude Reflection <b>+10 HP</b></strong
+                        ><span
+                          >Write a reflection and choose Grateful, check
+                          gratitude, or express gratitude in your text. Once per
+                          day.</span
+                        >
+                      </div>
+                    </li>
+                  </ul>
+                  <p>
+                    Your tree's growth target depends on the number of days in
+                    the month. Complete daily check-ins and reflections to grow
+                    your tree, or help it grow faster with positive thoughts and
+                    happy memories.
+                  </p>
+                  <p id="monthlyTargetInfo" class="monthly-target-info"></p>
+                  <p class="guide-reassurance">
+                    You can reflect more than once a day. Every mood is welcome,
+                    and difficult feelings never take points away.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </dialog>
+          <form id="reflectionForm">
+            <fieldset>
+              <legend>Your mood today</legend>
+              <div class="moods">
+                <button type="button" data-mood="Happy">
+                  <span aria-hidden="true">&#128522;</span>Happy</button
+                ><button type="button" data-mood="Grateful">
+                  <span aria-hidden="true">&#129392;</span>Grateful</button
+                ><button type="button" data-mood="Calm">
+                  <span aria-hidden="true">&#128524;</span>Calm</button
+                ><button type="button" data-mood="Excited">
+                  <span aria-hidden="true">&#129321;</span>Excited</button
+                ><button type="button" data-mood="Neutral">
+                  <span aria-hidden="true">&#128528;</span>Neutral
+                </button>
+              </div>
+            </fieldset>
+            <label for="journalText"
+              >Tell your tree about your day
+              <span>optional for mood check-in</span></label
+            ><textarea
+              id="journalText"
+              rows="4"
+              maxlength="10000"
+              placeholder="What made you happy today? Tell your tree about your day."
+            ></textarea>
+            <div class="reflection-options">
+              <label
+                ><input id="happyMemory" type="checkbox" /> This is a happy
+                memory</label
+              ><label
+                ><input id="gratitude" type="checkbox" /> A moment of
+                gratitude</label
+              >
+            </div>
+            <button id="saveBtn" class="primary" type="submit">
+              Save mood &amp; reflection
+            </button>
+            <p class="hint center">
+              A little reflection. A little growth. All at your own pace.
+            </p>
+            <p id="feedback" role="status" aria-live="polite"></p>
+            <p
+              id="storageNotice"
+              class="storage-notice"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </form>
+        </section>
+      </div>
+      <section class="stats" aria-label="Your happiness at a glance">
+        <div>
+          <span class="stat-icon">✧</span>
+          <p><strong id="totalHP">0</strong><span>Current tree HP</span></p>
+        </div>
+        <div>
+          <span class="stat-icon">▦</span>
+          <p><strong id="totalDays">0</strong><span>Reflection days</span></p>
+        </div>
+        <div>
+          <span class="stat-icon">✎</span>
+          <p>
+            <strong id="totalEntries">0</strong><span>Journal entries</span>
+          </p>
+        </div>
+        <div>
+          <span class="stat-icon">♧</span>
+          <p><strong id="totalTrees">0</strong><span>Happiness trees</span></p>
+        </div>
+      </section>
+      <section
+        id="history"
+        class="lower-section"
+        aria-labelledby="historyHeading"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LITTLE MOMENTS, LOVINGLY KEPT</p>
+            <h2 id="historyHeading">Your days, in bloom</h2>
+          </div>
+          <p class="calendar-invitation">Every day holds a little story.</p>
+        </div>
+        <div class="happiness-calendar">
+          <div class="calendar-toolbar">
+            <button
+              id="previousMonth"
+              class="calendar-nav"
+              type="button"
+              aria-label="Previous month"
+            >
+              &#8249;
+            </button>
+            <h3 id="calendarMonth" aria-live="polite"></h3>
+            <button
+              id="nextMonth"
+              class="calendar-nav"
+              type="button"
+              aria-label="Next month"
+            >
+              &#8250;
+            </button>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span
+            ><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div
+            id="calendarDays"
+            class="calendar-days"
+            role="group"
+            aria-labelledby="calendarMonth"
+          ></div>
+          <p id="calendarNote" class="calendar-note"></p>
+        </div>
+        <dialog
+          id="journalDialog"
+          class="journal-dialog"
+          aria-labelledby="journalDialogTitle"
+        >
+          <div class="journal-modal-shell">
+            <div class="journal-modal-heading">
+              <div>
+                <p class="eyebrow">MOMENTS FROM YOUR GARDEN</p>
+                <h3 id="journalDialogTitle"></h3>
+              </div>
+              <button
+                id="closeJournalDialog"
+                class="calendar-nav"
+                type="button"
+                aria-label="Close journal"
+              >
+                &#215;
+              </button>
+            </div>
+            <div id="journalDialogEntries" class="journal-modal-entries"></div>
+          </div>
+        </dialog>
+      </section>
+      <section id="garden" class="lower-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LOOK HOW FAR YOU’VE GROWN</p>
+            <h2>Your enchanted grove</h2>
+          </div>
+          <span class="muted"
+            >A collection of beautifully grown beginnings.</span
+          >
+        </div>
+        <div id="completedGarden" class="completed-garden"></div>
+      </section>
+      <aside class="closing">
+        ❧
+        <p>Every positive thought helps your happiness grow.</p>
+        <span>Be gentle with yourself. You’re growing.</span>
+      </aside>
+    </main>
+    <footer>
+      <span>my happiness tracker.</span
+      ><span
+        >Your reflections stay in this browser. Your garden grows with
+        you.</span
+      >
+    </footer>
+  </body>
+</html>
