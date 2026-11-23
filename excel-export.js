@@ -1,7 +1,7 @@
 /* Excel export is read-only. SheetJS creates the workbook; fflate applies native XLSX styles. */
 (function(root){
   'use strict';
-  const HEADERS={journal:['Date','Time','Mood','Journal Reflection','Happiness Points Earned'],trees:['Month and Year','Monthly HP Target','Total HP Earned','Growth Percentage','Tree Status']};
+  const HEADERS={journal:['Date','Time','Mood','Journal Reflection','Happiness Points Earned'],trees:['Month and Year','Monthly HP Target','Total HP Earned','Growth Percentage','Tree Status','Original Pre-limit HP']};
   const literal=value=>({t:'s',v:String(value??'')});
   const number=value=>({t:'n',v:Number.isFinite(value)?value:0});
   function excelDate(date){
@@ -33,18 +33,18 @@
       literal(e.journal),number(e.points)
     ]);
     const trees=monthly.sort(([a],[b])=>a.localeCompare(b)).map(([month,tree])=>[
-      {...excelDate(month+'-01'),z:'mmmm yyyy'},number(tree.target),number(tree.hp),
-      {t:'n',v:tree.target>0?tree.hp/tree.target:0,z:'0%'},literal(tree.hp>=tree.target?'Completed':'In Progress')
+      {...excelDate(month+'-01'),z:'mmmm yyyy'},number(1000),number(Math.min(1000,tree.hp)),
+      {t:'n',v:Math.min(1,Math.max(0,tree.hp)/1000),z:'0%'},literal(tree.hp>=1000?'Completed':'In Progress'),number(tree.preCapHP||(tree.hp>1000?tree.hp:0))
     ]);
     legacy.forEach((tree,index)=>trees.push([
       literal(`Legacy Tree ${tree.id??index+1} (completed ${tree.completedDate})`),
-      number(tree.target??350),number(tree.hp),{t:'n',v:tree.hp/(tree.target??350),z:'0%'},literal('Completed')
+      number(tree.target??350),number(tree.hp),{t:'n',v:tree.hp/(tree.target??350),z:'0%'},literal('Completed'),literal('Legacy record, unchanged')
     ]));
     const moodCounts=new Map();entries.forEach(e=>moodCounts.set(e.mood,(moodCounts.get(e.mood)||0)+1));
     const highest=Math.max(0,...moodCounts.values());
     const topMoods=[...moodCounts].filter(([,count])=>count===highest).map(([mood])=>mood).sort();
-    const totalHP=monthly.reduce((sum,[,tree])=>sum+tree.hp,0)+legacy.reduce((sum,tree)=>sum+(Number.isFinite(tree.hp)?tree.hp:0),0);
-    const completed=monthly.filter(([,tree])=>tree.hp>=tree.target).length+legacy.length;
+    const totalHP=monthly.reduce((sum,[,tree])=>sum+Math.min(1000,tree.hp),0)+legacy.reduce((sum,tree)=>sum+(Number.isFinite(tree.hp)?tree.hp:0),0);
+    const completed=monthly.filter(([,tree])=>tree.hp>=1000).length+legacy.length;
     const summary=[
       [literal('Total Journal Entries'),number(entries.length)],
       [literal('Total Reflection Days'),number(new Set(entries.map(e=>e.date)).size)],
@@ -54,13 +54,13 @@
     ];
     const workbook=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook,makeSheet(XLSX,HEADERS.journal,journals,[16,16,18,76,27]),'Happiness Journal');
-    XLSX.utils.book_append_sheet(workbook,makeSheet(XLSX,HEADERS.trees,trees,[46,24,24,24,22]),'Monthly Tree Progress');
+    XLSX.utils.book_append_sheet(workbook,makeSheet(XLSX,HEADERS.trees,trees,[46,24,24,24,22,28]),'Monthly Tree Progress');
     const summarySheet=makeSheet(XLSX,['Metric','Value'],summary,[38,76]);
-    summarySheet['A8']=literal('HP total basis');summarySheet['B8']=literal('Saved monthly tree balances plus legacy completed-tree balances. Journal rewards are not added again.');
-    summarySheet['A9']=literal('Historical records');summarySheet['B9']=literal('Legacy trees retain their original targets. Reflection days count dates with a saved journal entry or mood check-in. Tied moods are listed together.');
+    summarySheet['A8']=literal('HP total basis');summarySheet['B8']=literal('Capped monthly balances plus unchanged legacy completed-tree balances. Original pre-limit balances are retained in the monthly sheet; journal rewards are not added again.');
+    summarySheet['A9']=literal('Historical records');summarySheet['B9']=literal('Original pre-limit monthly balances are explicitly exported; historical journal awards and legacy trees remain unchanged. Reflection days count dates with a saved journal entry or mood check-in. Tied moods are listed together.');
     summarySheet['!ref']='A1:B9';summarySheet['!autofilter']={ref:'A1:B6'};summarySheet['!rows'][7]={hpt:44};summarySheet['!rows'][8]={hpt:58};
     XLSX.utils.book_append_sheet(workbook,summarySheet,'Happiness Summary');
-    workbook.Props={Title:'My Happiness Tracker',Subject:'Happiness memories and monthly tree progress',Author:'My Happiness Tracker'};
+    workbook.Props={Title:'My Happiness Diary',Subject:'Happiness memories and monthly tree progress',Author:'My Happiness Diary'};
     return workbook;
   }
   // CE writes values and number formats; these native OpenXML styles supply bold fonts,
