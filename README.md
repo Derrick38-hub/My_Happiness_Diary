@@ -1,14 +1,14 @@
 # My Happiness Tracker — Enchanted Monthly Garden
 
-A browser-local happiness diary with original five-stage SVG trees, mood check-ins, a compact Monday-first calendar, journal pop-ups, and an enchanted garden theme. Built with HTML, CSS and vanilla JavaScript; no build or backend required.
+A browser-local happiness diary with mood check-ins, editable same-day reflections, five-stage trees, a calendar, a monthly HP graph, and portable JSON backups. Built with HTML, CSS, and vanilla JavaScript. No build step or backend is required.
 
 ## Run
 
-Open `index.html`, or use VS Code Live Server. Alternatively run `python -m http.server 8000` and open http://localhost:8000. Use the same browser and address to retain the same LocalStorage.
+Open `index.html` in your preferred browser. You can also use VS Code Live Server or run `python -m http.server 8000` and open http://localhost:8000. Use the same browser profile and app address to access the same journal. Use **Backup & restore** when switching browsers or app addresses.
 
 ## Files
 
-- `index.html`: tree progress, mood/journal form, instruction modal, calendar and garden.
+- `index.html`: tree progress, mood and journal form, calendar, monthly graph, backup controls, and garden.
 - `style.css`: enchanted theme, responsive layouts and reduced-motion support.
 - `script.js`: monthly lifecycle, safe migration, rewards, persistence and UI.
 - `assets/happiness-tree.svg`: completed legacy tree artwork; current and monthly-record trees use the same original `treeSVG` generator.
@@ -16,7 +16,15 @@ Open `index.html`, or use VS Code Live Server. Alternatively run `python -m http
 
 ## Monthly trees and rewards
 
-Each year-month (`YYYY-MM`) has one tree. Its target is the number of calendar days multiplied by 15: 420 for 28 days, 435 for 29, 450 for 30, and 465 for 31. JavaScript date calculations handle leap years and year transitions. The five illustrated growth stages scale proportionally to each target.
+Each year-month (`YYYY-MM`) has one tree. Current and future trees reach full size at 600 HP. Past trees keep their recorded growth targets. The five illustrated growth stages scale proportionally to each tree's target.
+
+| Stage | Starts at |
+| --- | ---: |
+| Seed | 0 HP |
+| Little Sprout | 91 HP |
+| Growing Plant | 240 HP |
+| Young Tree | 420 HP |
+| Fully Grown Happiness Tree | 600 HP |
 
 - Daily mood check-in: 5 HP once per local day for Happy, Grateful, Calm, Excited, or Neutral. All five receive the same reward. Journal text is optional.
 - Daily written reflection: 10 HP once per local day. Mood-only saves do not consume this reward.
@@ -24,9 +32,21 @@ Each year-month (`YYYY-MM`) has one tree. Its target is the number of calendar d
 - Happy memory: 10 HP once daily when the checkbox is selected and the reflection is at least 30 characters.
 - Gratitude reflection: 10 HP once daily with a written reflection and the gratitude checkbox, Grateful mood, or an existing gratitude phrase.
 
-Mood selection is required for all saves. Written reflection and mood rewards are independent. Nothing subtracts points for difficult emotions. Each award is capped at the month's remaining target HP. At full growth the tree celebrates; users can continue journaling with zero additional HP until the new month.
+Mood selection is required for all saves. Written reflection and mood rewards are independent. Nothing subtracts points for difficult emotions. After the tree reaches full size, the growth display stays at 100% and eligible check-ins continue adding to the month's HP total.
 
-A new month starts a new seed automatically. A timer and returning to the page synchronize the active month; saving also routes rewards by the entry's local date. Previous full or partial trees remain monthly garden records. Missed months with no activity do not create artificial journal entries or award points. There is no manual second seed within a month.
+A new month starts a separate seed at 0 HP using the browser's local date. An open app checks for rollover every minute and when you return to its tab. Previous trees, including partially grown ones, remain in the garden.
+
+## Calendar and reflections
+
+The Monday-first calendar shows up to three distinct mood emojis per day. Select a day to see its entries newest first, including mood-only check-ins. Historical moods remain visible.
+
+For a written entry saved today, choose **Edit reflection** to change the text. The entry keeps its original date, time, mood, and earned HP. Earlier entries are read-only. The app checks the date again when saving an edit, so a draft left open past midnight cannot be saved.
+
+## Monthly graph
+
+Choose **Monthly graph** in the header to see the HP awarded on each day of the selected calendar month. Use the arrows to browse months and **View daily points** for exact values. The vertical axis goes up to 100 HP by default and expands if a day exceeds 100 HP.
+
+Opening or refreshing the app starts the calendar and graph on the current month. If you leave the app open across a month boundary, the graph follows the month selected in the calendar until you navigate to another month. Earlier graphs remain available.
 
 ## Data preservation and migration
 
@@ -48,22 +68,10 @@ LocalStorage failures leave the session usable and show a notice. Use **Backup &
 
 The JSON includes entries, monthly trees, and reward history. Each download captures a snapshot, so download a fresh backup to carry over newer entries. The app uses browser storage and does not connect to your cloud drive.
 
-## Calendar, accessibility and verification
+## Verification
 
-The 850px compact calendar keeps up to three distinct mood emojis per day. Its modal shows all entries newest first, including mood-only check-ins. Native dialogs support Escape, backdrop closing, focus restoration and background scroll locking. The instruction modal shows the current monthly target. User journal text is rendered with `textContent`; SVG markup is internally authored. Keyboard focus and reduced-motion styles are included.
-
-Run `node --check script.js`, `node test.js`. Checks cover monthly targets, all moods, independent daily rewards, positive-word limits, memory/gratitude limits, target capping, full-tree journaling, month/year rollover, cross-month isolation, preservation of legacy 255 HP, backup safety, repeat migration, existing calendar dates, and UI/modal handlers. Calendar alignment is checked across all 492 months from 2000 through 2040.
-
-UI tests use an isolated DOM/storage adapter and a simulated clock, without touching personal browser data. Actual browser visual verification remains unavailable in this environment. Google Fonts requires a connection; system fallbacks work offline. Calendar, theme and animations remain in place.
-
-
-New check-ins offer only Happy (??), Grateful (??), Calm (??), Excited (??), and Neutral (??). Previously saved moods remain unchanged in journal history and retain read-only calendar/modal emoji support. Removed moods are rejected for new submissions without changing HP or entries. Tests cover the five options, equal once-daily rewards, next-day reuse, and preservation/display of historical Sad, Stressed, Angry and Difficult entries. Responsive mood-grid styles, tree animations and compact calendar dimensions are unchanged.
-
+Run `node --check script.js` and `node test.js`. The checks cover monthly growth and rollover, rewards above 600 HP, calendar alignment, historical moods, same-day editing across midnight, monthly graph navigation, and backup and restore. UI tests use isolated browser-storage simulations and a simulated clock.
 
 ## Energy Color Palette
 
-The presentation uses CSS variables for Deep Blue `#304F6D`, Sage Green `#899481`, Terracotta `#E07D54`, Soft Yellow `#FFE1A0`, Light Blue `#E2F3FD`, and Warm Gray `#E6E1DD`. White/near-white surfaces and palette-derived tints provide readable text, soft shadows, and consistent states. Primary actions use Terracotta; secondary controls and progress use Sage; headings and focus rings use Deep Blue. Dark text derived from Deep Blue provides at least 4.5:1 contrast on both action colors. All five tree stages and the saved completed-tree SVG use the same palette. Geometry, animation timing, application behavior, and storage are unchanged. 
-
-## Monthly graph
-
-Choose **Monthly graph** in the header to see Happiness Points earned on each day of the selected calendar month. Use the arrows to browse months and **View daily points** to read exact values.
+The presentation uses CSS variables for Deep Blue `#304F6D`, Sage Green `#899481`, Terracotta `#E07D54`, Soft Yellow `#FFE1A0`, Light Blue `#E2F3FD`, and Warm Gray `#E6E1DD`. All five tree stages and the legacy completed-tree SVG use the same palette. The layout includes keyboard focus and reduced-motion styles. System fonts are available offline.

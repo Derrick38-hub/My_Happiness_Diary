@@ -1,14 +1,14 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');const vm=require('node:vm');
 const app=require('./script.js');
-const {defaultState,validateState,addReflection,calculatePoints,ensureMonthlyTree,monthlyTarget,getStageIndex,calendarCells,localDateKey,groupJournalEntries,MOOD_EMOJIS,treeSVG}=app;
+const {defaultState,validateState,addReflection,calculatePoints,ensureMonthlyTree,getStageIndex,calendarCells,localDateKey,groupJournalEntries,MOOD_EMOJIS,treeSVG}=app;
 let checks=0;function check(name,fn){fn();checks++;console.log('PASS '+name);}
 const day='2026-11-20',next='2026-11-21';
 const input=(journal='',mood='Calm',extra={})=>({journal,mood,...extra});
 const reward=(result,label)=>result.reasons.find(r=>r.label===label)?.points||0;
 function withHP(hp,date=day){const s=defaultState(date);s.monthlyTrees[date.slice(0,7)].hp=hp;s.hp=hp;return s;}
-check('Monthly targets include common years, leap years, 30 days and 31 days',()=>{
- for(const [month,target] of [['2027-02',420],['2028-02',435],['2026-04',450],['2026-11',450],['2026-12',465],['2100-02',420],['2000-02',435]])assert.equal(monthlyTarget(month),target);
+check('Every new month has a 600 HP growth target',()=>{
+ for(const month of ['2027-02','2028-02','2026-04','2026-12'])assert.equal(defaultState(month+'-01').monthlyTrees[month].target,600);
 });
 check('All moods earn 5 HP once daily with no written reflection bonus',()=>{
  for(const mood of ['Happy','Grateful','Calm','Excited','Neutral']){
@@ -42,11 +42,12 @@ check('Memory and gratitude bonuses remain once each daily and require journal t
  const tomorrow=addReflection(s,input(text,'Grateful',{memory:true}),next);assert.equal(reward(tomorrow,'Happy memory'),10);assert.equal(reward(tomorrow,'Gratitude reflection'),10);
  assert.ok(addReflection(s,input('short','Happy',{memory:true}),next).error);
 });
-check('Target cap and completion keep allowing journal history without more HP',()=>{
- const s=withHP(448);const r=addReflection(s,input('happy'),day);assert.equal(r.points,2);assert.equal(s.hp,450);
+check('Crossing 600 HP completes the tree and later entries still earn points',()=>{
+ const s=withHP(598);const r=addReflection(s,input('happy'),day);assert.equal(r.points,20);assert.equal(s.hp,618);
  assert.equal(s.monthlyTrees['2026-11'].completedDate,day);
- assert.equal(addReflection(s,input('peaceful'),next).points,0);assert.equal(s.entries.length,2);
- assert.equal(s.monthlyTrees['2026-11'].hp,450);assert.equal(s.completedTrees.length,0);
+ assert.equal(addReflection(s,input('peaceful'),next).points,20);assert.equal(s.entries.length,2);
+ assert.equal(s.monthlyTrees['2026-11'].hp,638);assert.equal(s.completedTrees.length,0);
+ assert.equal(s.monthlyTrees['2026-11'].completedDate,day);
 });
 check('Month/year rollover preserves partial trees and starts at zero only once',()=>{
  const s=withHP(255,'2026-12-31');addReflection(s,input('qzx'), '2026-12-31');const december=s.hp;
@@ -75,7 +76,7 @@ check('Old-month migration archives its balance without increasing the new month
 });
 check('Legacy fully grown tree and old schema words are retained',()=>{
  const old={...legacy,version:2,hp:350};delete old.rewardedWordsByDate;
- const s=validateState(old,day);assert.equal(s.hp,350);assert.equal(s.monthlyTrees['2026-11'].target,450);assert.deepEqual(s.rewardedWordsByDate[day],['happy']);assert.equal(s.completedTrees[0].hp,350);
+ const s=validateState(old,day);assert.equal(s.hp,350);assert.equal(s.monthlyTrees['2026-11'].target,600);assert.deepEqual(s.rewardedWordsByDate[day],['happy']);assert.equal(s.completedTrees[0].hp,350);
 });
 check('Reload keeps mood-only check-ins distinct from written rewards',()=>{
  const s=defaultState(day);addReflection(s,input(),day);const loaded=validateState(JSON.parse(JSON.stringify(s)),day);
@@ -107,8 +108,26 @@ function page(storage,date=day,{confirm=()=>false,write=(key,value)=>storage[key
  return {get,moods,document,download:()=>download,tick(date){clock=date;timer();}};
 }
 const key='myHappinessTrackerV1';
-check('UI migrates once and displays November 255/450 and 57% with dynamic instructions',()=>{
- const storage={[key]:JSON.stringify(legacy)},ui=page(storage);assert.equal(ui.get('currentHP').textContent,255);assert.equal(ui.get('targetHP').textContent,450);assert.equal(ui.get('progressText').textContent,'57% grown');assert.match(ui.get('treeMonth').textContent,/November 2026/);assert.match(ui.get('monthlyTargetInfo').textContent,/450 HP/);
+check('Current tree migrates to 600 HP while past targets and surplus points are preserved',()=>{
+ const previous=withHP(465,'2026-10-31').monthlyTrees['2026-10'];
+ previous.completedDate='2026-10-31';
+ previous.target=465;
+ const saved=withHP(450);
+ saved.monthlyTrees['2026-10']=previous;
+ Object.assign(saved.monthlyTrees['2026-11'],{target:450,completedDate:day});
+ const storage={[key]:JSON.stringify(saved)};
+ const ui=page(storage);
+ const migrated=JSON.parse(storage[key]);
+ assert.deepEqual(migrated.monthlyTrees['2026-10'],previous);
+ assert.equal(migrated.monthlyTrees['2026-11'].completedDate,null);
+ assert.equal(ui.get('targetHP').textContent,600);
+ const full=page({[key]:JSON.stringify(withHP(650))});
+ assert.equal(full.get('currentHP').textContent,650);
+ assert.equal(full.get('progressText').textContent,'100% grown');
+ assert.equal(full.get('progressFill').style.width,'100%');
+});
+check('UI migrates once and displays November 255/600 with dynamic instructions',()=>{
+ const storage={[key]:JSON.stringify(legacy)},ui=page(storage);assert.equal(ui.get('currentHP').textContent,255);assert.equal(ui.get('targetHP').textContent,600);assert.equal(ui.get('progressText').textContent,'43% grown');assert.match(ui.get('treeMonth').textContent,/November 2026/);assert.match(ui.get('monthlyTargetInfo').textContent,/600 HP/);
  assert.equal(storage[key+'BeforeMonthlyV4'],JSON.stringify(legacy));const first=storage[key];page(storage);assert.equal(storage[key],first);assert.equal(JSON.parse(first).entries.length,1);
  ui.moods[4].listeners.click();ui.get('reflectionForm').listeners.submit({preventDefault(){}});assert.match(ui.get('feedback').textContent,/Mood saved/);assert.equal(JSON.parse(storage[key]).hp,260);
 });
@@ -248,7 +267,7 @@ check('Monthly graph adds daily HP and follows the selected calendar month',()=>
  assert.equal(storage[key],original);
 });
 async function checkBackupRestore(){
- const source=withHP(255);
+ const source=withHP(598);
  addReflection(source,input('happy and peaceful'),day);
  const original={[key]:JSON.stringify(source)},oldBrowser=page(original);
  oldBrowser.get('backupBtn').listeners.click();

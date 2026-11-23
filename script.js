@@ -11,12 +11,14 @@ const STAGE_RATIOS = [0, 53/350, 140/350, 245/350, 1];
 function localDateKey(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
 function monthKey(date=localDateKey()) { return date.slice(0,7); }
 function validMonth(value) { return typeof value==='string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value); }
-function monthlyTarget(month) {
-  const [year,number]=month.split('-').map(Number);
-  return new Date(year,number,0,12).getDate()*15;
+const MONTHLY_GROWTH_HP=600;
+function daysInMonth(month) {
+  const date=new Date(month+'-01T12:00:00');
+  date.setMonth(date.getMonth()+1,0);
+  return date.getDate();
 }
 function monthLabel(month) { return new Date(month+'-01T12:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'}); }
-function newMonthlyTree(month) { return {month,hp:0,target:monthlyTarget(month),startDate:month+'-01',completedDate:null}; }
+function newMonthlyTree(month) { return {month,hp:0,target:MONTHLY_GROWTH_HP,startDate:month+'-01',completedDate:null}; }
 function defaultState(date=localDateKey()) {
   const month=monthKey(date);
   return {version:4,hp:0,treeId:1,startDate:month+'-01',activeMonth:month,
@@ -29,7 +31,7 @@ function ensureMonthlyTree(state,date=localDateKey()) {
   state.activeMonth=month;state.hp=state.monthlyTrees[month].hp;state.startDate=state.monthlyTrees[month].startDate;
   return changed;
 }
-function getStageIndex(hp,target=monthlyTarget(monthKey())) { return STAGE_RATIOS.reduce((stage,ratio,i)=>hp>=Math.ceil(target*ratio)?i:stage,0); }
+function getStageIndex(hp,target=MONTHLY_GROWTH_HP) { return STAGE_RATIOS.reduce((stage,ratio,i)=>hp>=Math.ceil(target*ratio)?i:stage,0); }
 function tokenizeWords(text) { return [...new Set((text.toLowerCase().match(/\p{L}+/gu)||[]))]; }
 function extractPositiveWords(text) { return tokenizeWords(text).filter(word=>POSITIVE.has(word)); }
 function analyzeWords(state,text,date=localDateKey()) {
@@ -64,8 +66,9 @@ function validateState(saved,date=localDateKey()) {
   if(saved.version===4 && saved.monthlyTrees && typeof saved.monthlyTrees==='object') {
     Object.entries(saved.monthlyTrees).forEach(([month,tree])=>{
       if(!validMonth(month)||!tree||!Number.isFinite(tree.hp))return;
-      const target=monthlyTarget(month),hp=Math.min(target,Math.max(0,tree.hp));
-      clean.monthlyTrees[month]={...tree,month,target,hp,startDate:validDate(tree.startDate)?tree.startDate:month+'-01',completedDate:validDate(tree.completedDate)?tree.completedDate:null};
+      const target=month<monthKey(date)&&Number.isFinite(tree.target)&&tree.target>0?tree.target:MONTHLY_GROWTH_HP;
+      const hp=Math.max(0,tree.hp);
+      clean.monthlyTrees[month]={...tree,month,target,hp,startDate:validDate(tree.startDate)?tree.startDate:month+'-01',completedDate:hp>=target&&validDate(tree.completedDate)?tree.completedDate:null};
     });
   }else {
     // Preserve the indivisible old tree's balance once, in its latest active month.
@@ -76,12 +79,13 @@ function validateState(saved,date=localDateKey()) {
     const month=monthKey(sourceDate);
     const alreadyArchived=clean.completedTrees.some(t=>t.id===clean.treeId&&t.hp===saved.hp);
     const hp=!alreadyArchived&&Number.isFinite(saved.hp)?Math.max(0,saved.hp):0;
-    clean.monthlyTrees[month]={...newMonthlyTree(month),hp:Math.min(monthlyTarget(month),hp),migratedFromLegacy:true};
+    const target=month<monthKey(date)?daysInMonth(month)*15:MONTHLY_GROWTH_HP;
+    clean.monthlyTrees[month]={...newMonthlyTree(month),hp,target,migratedFromLegacy:true};
     clean.legacyProgress={hp:saved.hp,treeId:saved.treeId,startDate:saved.startDate,alreadyArchived};
   }
   ensureMonthlyTree(clean,date);
   Object.values(clean.monthlyTrees).forEach(tree=>{
-    if(tree.hp>=tree.target&&!tree.completedDate)tree.completedDate=tree.month===monthKey(date)?date:tree.month+'-'+String(tree.target/15).padStart(2,'0');
+    if(tree.hp>=tree.target&&!tree.completedDate)tree.completedDate=tree.month===monthKey(date)?date:tree.month+'-'+daysInMonth(tree.month);
   });
   return clean;
 }
@@ -94,7 +98,7 @@ function readBackup(text) {
      !saved.rewardedWordsByDate||typeof saved.rewardedWordsByDate!=='object'||Array.isArray(saved.rewardedWordsByDate)||
      !Object.entries(saved.rewardedWordsByDate).every(([day,words])=>validDate(day)&&Array.isArray(words)&&words.every(word=>typeof word==='string'))||
      !saved.monthlyTrees||!validMonth(saved.activeMonth)||!saved.monthlyTrees[saved.activeMonth]||
-     !Object.entries(saved.monthlyTrees).every(([month,tree])=>validMonth(month)&&tree&&Number.isFinite(tree.hp)&&tree.hp>=0&&tree.hp<=monthlyTarget(month))) {
+     !Object.entries(saved.monthlyTrees).every(([month,tree])=>validMonth(month)&&tree&&Number.isFinite(tree.hp)&&tree.hp>=0)) {
     throw new Error('Choose a valid My Happiness Tracker backup file.');
   }
   const restored=validateState(saved);
@@ -104,7 +108,7 @@ function readBackup(text) {
   return restored;
 }
 function calculatePoints(state,input,date) {
-  const journal=input.journal.trim(),month=monthKey(date),tree=state.monthlyTrees[month]||newMonthlyTree(month);
+  const journal=input.journal.trim();
   const today=state.entries.filter(e=>e.date===date),reasons=[];
   const moodBonus=!state.moodRewardedDates.includes(date)&&!today.some(e=>e.moodBonus);
   const reflectionBonus=!!journal&&!state.rewardedDates.includes(date)&&!today.some(e=>e.journal.trim());
@@ -116,9 +120,7 @@ function calculatePoints(state,input,date) {
   const gratitudeBonus=!!journal&&(input.gratitude||input.mood==='Grateful'||/\b(grateful|thankful|gratitude|appreciate)\b/i.test(journal))&&!today.some(e=>e.gratitudeBonus);
   if(memoryBonus)reasons.push({label:'Happy memory',points:10});
   if(gratitudeBonus)reasons.push({label:'Gratitude reflection',points:10});
-  let remaining=Math.max(0,tree.target-tree.hp);
-  const awarded=reasons.map(reason=>{const points=Math.min(reason.points,remaining);remaining-=points;return {...reason,points};});
-  return {points:awarded.reduce((sum,r)=>sum+r.points,0),reasons:awarded,...wordAnalysis,moodBonus,reflectionBonus,memoryBonus,gratitudeBonus};
+  return {points:reasons.reduce((sum,r)=>sum+r.points,0),reasons,...wordAnalysis,moodBonus,reflectionBonus,memoryBonus,gratitudeBonus};
 }
 function addReflection(state,input,date=localDateKey(),time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})) {
   if(!MOODS.includes(input.mood))return {error:'Choose a mood to check in with yourself.'};
@@ -127,7 +129,7 @@ function addReflection(state,input,date=localDateKey(),time=new Date().toLocaleT
   const result=calculatePoints(state,input,date),tree=state.monthlyTrees[monthKey(date)];
   state.entries.unshift({id:`${Date.now()}-${Math.random().toString(36).slice(2)}`,date,time,mood:input.mood,words:'',journal:input.journal.trim(),points:result.points,treeId:state.treeId,monthId:monthKey(date),moodBonus:result.moodBonus,reflectionBonus:result.reflectionBonus,memoryBonus:result.memoryBonus,gratitudeBonus:result.gratitudeBonus});
   tree.hp+=result.points;state.hp=tree.hp;
-  if(tree.hp===tree.target&&!tree.completedDate)tree.completedDate=date;
+  if(tree.hp>=tree.target&&!tree.completedDate)tree.completedDate=date;
   state.rewardedWordsByDate[date]=[...new Set([...(state.rewardedWordsByDate[date]||[]),...result.newWords])];
   if(result.reflectionBonus&&!state.rewardedDates.includes(date))state.rewardedDates.push(date);
   if(result.moodBonus&&!state.moodRewardedDates.includes(date))state.moodRewardedDates.push(date);
@@ -186,11 +188,18 @@ function calendarCells(year, month) {
     return day<1 || day>days ? null : localDateKey(new Date(year,month,day,12));
   });
 }
-if(typeof module!=='undefined') module.exports={defaultState,validateState,addReflection,calculatePoints,getStageIndex,treeSVG,localDateKey,POSITIVE,analyzeWords,tokenizeWords,groupJournalEntries,calendarCells,MOOD_EMOJIS,monthlyTarget,monthKey,ensureMonthlyTree,MOODS,moodEmoji};
+if(typeof module!=='undefined') module.exports={defaultState,validateState,addReflection,calculatePoints,getStageIndex,treeSVG,localDateKey,POSITIVE,analyzeWords,tokenizeWords,groupJournalEntries,calendarCells,MOOD_EMOJIS,monthKey,ensureMonthlyTree,MOODS,moodEmoji};
 if(typeof document!=='undefined') initApp();
 function initApp() {
   const $=id=>document.getElementById(id);let storageWarning='';let state;let needsMigrationSave=false;let legacyBackupRaw=null;let offerRestore=false;
-  try {const raw=localStorage.getItem(STORAGE_KEY);const saved=raw?JSON.parse(raw):null;state=validateState(saved);offerRestore=raw===null;needsMigrationSave=!!saved&&(saved.version!==4||saved.activeMonth!==state.activeMonth);if(saved&&saved.version!==4)legacyBackupRaw=raw;}catch(error){state=defaultState();storageWarning='Browser storage is unavailable or unreadable. Use Download backup to keep a copy of this session.';}
+  try {
+    const raw=localStorage.getItem(STORAGE_KEY),saved=raw?JSON.parse(raw):null;
+    state=validateState(saved);
+    offerRestore=raw===null;
+    needsMigrationSave=!!saved&&(saved.version!==4||saved.activeMonth!==state.activeMonth||
+      saved.monthlyTrees?.[state.activeMonth]?.target!==MONTHLY_GROWTH_HP);
+    if(saved&&saved.version!==4)legacyBackupRaw=raw;
+  }catch(error){state=defaultState();storageWarning='Browser storage is unavailable or unreadable. Use Download backup to keep a copy of this session.';}
   let mood='';
   const persist=()=>{try{if(legacyBackupRaw&&!localStorage.getItem(STORAGE_KEY+'BeforeMonthlyV4'))localStorage.setItem(STORAGE_KEY+'BeforeMonthlyV4',legacyBackupRaw);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));legacyBackupRaw=null;storageWarning='';return true;}catch(error){storageWarning='The browser could not save your changes. Use Download backup to keep a copy of this session.';return false;}};
   const node=(tag,text,className)=>{const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;};
@@ -448,14 +457,15 @@ function initApp() {
   if(offerRestore)openBackup(true);
   function render(){
     const tree=state.monthlyTrees[state.activeMonth],target=tree.target,stage=getStageIndex(tree.hp,target);
+    const growthHP=Math.min(tree.hp,target),growthPercent=growthHP/target*100;
     $('tree').innerHTML=treeSVG(stage);$('tree').setAttribute('aria-label',STAGES[stage]);$('treeStage').textContent=STAGES[stage];
     $('treeNumber').textContent=state.activeMonth;$('treeMonth').textContent=monthLabel(state.activeMonth);
     $('treeMessage').textContent=stage===4?'Your monthly tree is fully grown! A new seed arrives next month.':'A little care, a little wonder. Your monthly garden is growing.';
     $('currentHP').textContent=tree.hp;$('totalHP').textContent=tree.hp;$('targetHP').textContent=target;
-    $('progressText').textContent=`${Math.round(tree.hp/target*100)}% grown`;$('progressFill').style.width=`${tree.hp/target*100}%`;
-    $('growthProgress').setAttribute('aria-valuenow',tree.hp);$('growthProgress').setAttribute('aria-valuemax',target);
+    $('progressText').textContent=`${stage===4?100:Math.min(99,Math.round(growthPercent))}% grown`;$('progressFill').style.width=`${growthPercent}%`;
+    $('growthProgress').setAttribute('aria-valuenow',growthHP);$('growthProgress').setAttribute('aria-valuemax',target);
     $('nextStage').textContent=stage<4?`${Math.ceil(target*STAGE_RATIOS[stage+1])-tree.hp} HP until ${STAGES[stage+1].toLowerCase()}.`:`${target} HP - a month of little happy moments.`;
-    $('monthlyTargetInfo').textContent=`${monthLabel(state.activeMonth)}: ${target/15} days, ${target} HP to fully grow your tree.`;
+    $('monthlyTargetInfo').textContent=`${monthLabel(state.activeMonth)}: ${target} HP to fully grow your tree.`;
     $('totalDays').textContent=new Set(state.entries.map(e=>e.date)).size;$('totalEntries').textContent=state.entries.length;
     $('totalTrees').textContent=state.completedTrees.length+Object.values(state.monthlyTrees).filter(t=>t.hp>=t.target).length;
     document.querySelector('.tree-card').classList.toggle('celebrate',stage===4);
